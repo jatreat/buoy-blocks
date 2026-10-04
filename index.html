@@ -451,9 +451,10 @@ if (typeof module !== "undefined") module.exports = BB;
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
     var cs = getComputedStyle($("safe")), st = parseFloat(cs.paddingTop) || 0, sb = parseFloat(cs.paddingBottom) || 0;
     var hud = 92 + st, foot = 12 + sb, l = {};
+    // hosts often load the game in a hidden or zero-size frame: lay out at a safe minimum until the real size arrives
     var portrait = W / H < 1.05;
     if (!portrait) {
-      var B = Math.min(H - hud - foot - 8, W * 0.6);
+      var B = Math.max(60, Math.min(H - hud - foot - 8, W * 0.6));
       var trayW = Math.min(B * 0.42, W - B - 64);
       if (trayW < B * 0.3) portrait = true;
       else {
@@ -465,7 +466,7 @@ if (typeof module !== "undefined") module.exports = BB;
     }
     if (portrait) {
       var trayH0 = Math.min(200, Math.max(120, H * 0.21));
-      var B2 = Math.min(W - 24, H - hud - foot - trayH0 - 14);
+      var B2 = Math.max(60, Math.min(W - 24, H - hud - foot - trayH0 - 14));
       l.B = B2; l.side = false;
       l.bx = (W - B2) / 2;
       var free = H - hud - foot - B2 - trayH0 - 14;
@@ -479,6 +480,7 @@ if (typeof module !== "undefined") module.exports = BB;
       else l.slots.push({ x: l.tray.x + k * l.tray.w / 3, y: l.tray.y, w: l.tray.w / 3, h: l.tray.h });
     }
     l.ts = Math.min(l.cell * 0.62, Math.min(l.slots[0].w, l.slots[0].h) / 5.4);
+    l.bad = W < 80 || H < 80;
     L = l;
     // tips sit under the tray on phones, over the tray's foot on wide screens
     var tst = $("toast").style;
@@ -938,16 +940,18 @@ if (typeof module !== "undefined") module.exports = BB;
   /* ===================== Loop ===================== */
   var last = 0;
   function frame(ts) {
+    requestAnimationFrame(frame); // first, so one bad frame can never stop the game
     var t = ts / 1000, dt = last ? Math.min(0.05, t - last) : 0.016; last = t;
     if (!paused) clock += dt;
     if (G.g) {
       if (G.disp < G.g.score) { G.disp = Math.min(G.g.score, G.disp + Math.max(1, (G.g.score - G.disp) * dt * 8)); $("score").textContent = fmt(G.disp); $("bestN").textContent = fmt(Math.max(S.best, Math.floor(G.disp))); }
       if (G.state === "ending" && clock >= G.overAt) { G.overWave = Math.min(1, G.overWave + dt * 1.6); if (G.overWave >= 1) finishGame(); }
       G.shake = Math.max(0, G.shake - dt * 2.5);
-      draw(dt);
-      positionHint(clock);
+      if (!L.bad) {
+        try { draw(dt); positionHint(clock); }
+        catch (e) { if (!frame.failed) { frame.failed = true; try { console.error(e); } catch (e2) {} } }
+      }
     }
-    requestAnimationFrame(frame);
   }
 
   /* ===================== Visibility / resize ===================== */
